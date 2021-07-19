@@ -42,7 +42,7 @@ class class4_construct{
 	}
 }
 class class5{}
-$class2_instance = $di->call('class2_construct', ['default'=>['bob'=>new class5]]);
+$class2_instance = $di->call('class4_construct', ['default'=>['bob'=>new class5]]);
 
 # service as a parameter
 $class2_instance = $di->call_with('class2_construct', ['bob'=> new \Grithin\IoC\Service('class3')]);
