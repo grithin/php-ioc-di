@@ -62,6 +62,17 @@ Will also accept odd variables:
 	-	if singleton, will return reference
 	-	if not singleton, will return non-reference
 
+### The Notion Of Options In Services
+
+That an object is constructed with parameters other than those that are auto injected is sometimes the case.  To allow this, SL provides both:
+-	DI options bound to the service, that are used each time `get` is called for the service
+-	`get` call DI options, that can be used for instance specific parameters and to overwrite options bound to the service
+
+An example of the utility of this can be seen in how SL implements PSR 11.
+
+@SideNote A `get` with options instigating a `bind` should not bind the options to the new service.  If the get is being used with options, it is expected further `get`'s to that service will also use options.
+
+
 
 ## Notes
 By default, SL does not check all classes to resolve an interface or abstract class, it only checks what is within the services (by id).  You can make it check everything though:

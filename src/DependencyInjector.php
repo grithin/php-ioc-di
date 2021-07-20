@@ -176,6 +176,7 @@ class DependencyInjector{
 	*/
 	public function parameters_resolve($params, $options){
 		$defaults = ['default'=>[], 'with'=>[], 'false_on_missing'=>false];
+
 		extract(array_merge($defaults, $options));
 
 		$params_to_inject = [];

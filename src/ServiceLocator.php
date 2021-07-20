@@ -4,10 +4,10 @@ namespace Grithin;
 use Grithin\IoC\NotFound;
 
 /**
-service locator oddities
 
+
+service locator oddities considered while building
 -	say we have a interface bound to a class, and that class is bound using singleton to some factory function.  In reality, we want the interface to point to the output of the factory.
-
 -	circular dependencies
 	-	DI requires SL, SL requires DI
 	PHP will just error on recursion depth limit
@@ -15,10 +15,10 @@ service locator oddities
 */
 
 
-class ServiceLocator{ # implements PSR 11
+class ServiceLocator{
 	public $services = [];
 	public $services_reflections = [];
-	public $interfaces = [];
+	public $services_options = []; #< options bound with the service
 
 	public $singletons_ids = []; # list of singletons, as a hash/dictionary
 	public $singletons = []; # list of singleton returns
@@ -43,6 +43,9 @@ class ServiceLocator{ # implements PSR 11
 		set up DI to use this ServiceLocator and to resolve parameters that are services
 		*/
 		$this->injector = new DependencyInjector($getter, ['service_resolve'=>true]);
+
+		# bind PSR container
+		$this->singleton('Psr\\Container\\ContainerInterface', 'Grithin\\PsrServiceLocator', ['with'=>[$this]]);
 	}
 
 	public function throw($exception){
@@ -59,31 +62,39 @@ class ServiceLocator{ # implements PSR 11
 		$this->injector = $injector;
 	}
 	public function has($id){
-
+		if(isset($this->services[$id])){
+			return true;
+		}
+		return false;
 	}
-	public function singleton($id, $thing){
+	/**
+	If the singleton is already initializaed, the options won't have an effect
+	*/
+	public function singleton($id, $thing, $options=[]){
 		$this->singletons[$id] = true;
-		$this->bind($id, $thing);
+		$this->bind($id, $thing, $options);
 	}
 	public function set($id, $thing){
 		$this->bind($id, $thing);
 	}
 
-	public function bind($id, $thing=null){
+	public function bind($id, $thing=null, $options=[]){
 		if($thing === null){
 			$thing = $id;
 		}
 		$this->services[$id] = $thing;
+		$this->services_options[$id] = $options;
 	}
 	public $getting = [];
 	/** get, but don't throw exception if missing.  Return it instead .*/
-	public function &get_silent($id){
+	public function &get_silent($id, $options=[]){
 		$this->silent = true;
 		$result = $this->get($id);
 		$this->silent = false;
 		return $result;
 	}
-	public function &get($id){
+
+	public function &get(String $id, $options=[]){
 		#+ check for circular dependency {
 		if(count(array_keys($this->getting, $id)) > 1){
 			$result = $this->throw(new IoC\Exception('Circular dependency'));
@@ -105,7 +116,11 @@ class ServiceLocator{ # implements PSR 11
 
 		return $result;
 	}
-	public function &resolve($id){
+	/** params
+	< id > < service id >
+	< options > < options to pass in to the dependency injector when constructing the service >
+	*/
+	public function &resolve($id, $options=[]){
 		if(isset($this->services[$id])){ #< service exists
 			#+ check for singleton that has already been formed {
 			$is_singleton = false;
@@ -118,16 +133,23 @@ class ServiceLocator{ # implements PSR 11
 			#+ }
 
 			$service = $this->services[$id];
+			$service_options = $this->services_options[$id];
+			/* if both the service options exist and options were passed in, merge the two.
+				Since options include other arrays `with` `default`, they will be overwritten
+				on the merge, allowing the choice to clear out the options bound to the service
+			*/
+			$options = array_merge($service_options, $options);
+
 			if(is_string($service)){
 				#+ check if points to another service {
 				if(isset($this->services[$service]) && $service != $id){
-					return $this->get($service);
+					return $this->get($service, $options);
 				}
 				#+ }
 
 				#+ if class, make it and return {
 				if(class_exists($service)){
-					$resolved = $this->injector->class_construct($service);
+					$resolved = $this->injector->class_construct($service, $options);
 					if($is_singleton){
 						$this->singletons[$id] = $resolved;
 					}
@@ -138,7 +160,7 @@ class ServiceLocator{ # implements PSR 11
 				return $result;
 			}elseif($service instanceof \Closure){
 				# probably a factory
-				$resolved = $this->injector->call($service);
+				$resolved = $this->injector->call($service, $options);
 				if($is_singleton){
 					$this->singletons[$id] = &$resolved;
 				}
@@ -163,10 +185,10 @@ class ServiceLocator{ # implements PSR 11
 			$result = false;
 			if(class_exists($id)){
 				$reflect = new \ReflectionClass($id);
-				$result = $this->by_class($id);
+				$result = $this->by_class($id, $options);
 			}elseif(interface_exists($id)){
 				$reflect = new \ReflectionClass($id);
-				$result = $this->by_interface($id);
+				$result = $this->by_interface($id, $options);
 			}
 			if(!$result){
 				$result = $this->throw(new NotFound($id));
@@ -186,7 +208,7 @@ class ServiceLocator{ # implements PSR 11
 		return $this->services_reflections[$id];
 	}
 	/** resolve a service by an interface */
-	public function by_interface($interface){
+	public function by_interface($interface, $options=[]){
 		#+ check the existing services {
 		foreach($this->services as $id=>$service){
 			$reflect = $this->reflection($id);
@@ -196,7 +218,7 @@ class ServiceLocator{ # implements PSR 11
 				&& !$reflect->isTrait()
 			){
 				$this->bind($interface, $id);
-				return $this->get($interface);
+				return $this->get($interface, $options);
 			}
 		}
 		#+ }
@@ -212,20 +234,20 @@ class ServiceLocator{ # implements PSR 11
 					&& !$reflect->isTrait()
 				){
 					$this->bind($interface, $class);
-					return $this->get($class);
+					return $this->get($class, $options);
 				}
 			}
 		}
 		#+ }
 	}
 	/** resolve a service by a class */
-	public function by_class($class){
+	public function by_class($class, $options=[]){
 		#+ check the existing services {
 		foreach($this->services as $id=>$service){
 			$reflect = $this->reflection($id);
 			if($reflect && ($reflect->getName() == $class || $reflect->isSubclassOf($class))){
 				$this->bind($class, $id);
-				return $this->get($class);
+				return $this->get($class, $options);
 			}
 		}
 		#+ }
@@ -236,8 +258,8 @@ class ServiceLocator{ # implements PSR 11
 			&& !$reflect->isInterface()
 			&& !$reflect->isTrait()
 		){
-			$this->bind($class, $class);
-			return $this->get($class);
+			$this->bind($class);
+			return $this->get($class, $options);
 		}
 		#+ }
 
@@ -255,7 +277,7 @@ class ServiceLocator{ # implements PSR 11
 					&& !$reflect->isTrait()
 				){
 					$this->bind($target_class, $class);
-					return $this->get($target_class);
+					return $this->get($target_class, $options);
 				}
 			}
 		}

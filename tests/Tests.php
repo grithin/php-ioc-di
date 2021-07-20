@@ -12,7 +12,7 @@ use \Grithin\IoC\Service;
 use \Grithin\GlobalFunctions;
 
 # toggle to silence ppe and pp during debugging
-GlobalFunctions::$silence = true;
+#GlobalFunctions::$silence = true;
 
 
 interface interface1{}
@@ -197,7 +197,6 @@ class RecordClassTests extends TestCase{
 			return compact('bob', 'sue', 'dan');
 		};
 		$sl->bind('class6');
-		GlobalFunctions::$silence = false;
 		$result = $di->call_with($closure, ['bob'=>new Service('class9')]);
 		$this->assertTrue($result['bob'] instanceof class9, 'service inject with override fails');
 	}
@@ -210,5 +209,20 @@ class RecordClassTests extends TestCase{
 		};
 		$result = $di->call($closure);
 		$this->assertTrue($result instanceof interface1, 'check all fails to resolve');
+	}
+
+	function test_psr11(){
+		$sl = new ServiceLocator;
+		$di = $sl->injector_get();
+		$closure = function(\Psr\Container\ContainerInterface $x){
+			return $x;
+		};
+		$result = $di->call($closure);
+		$this->assertTrue($result instanceof \Grithin\PsrServiceLocator, 'PSR 11 fails injection');
+		$this->assertTrue($result->sl instanceof \Grithin\ServiceLocator, 'PSR 11 fails injection');
+
+
+
+
 	}
 }
