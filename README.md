@@ -1,6 +1,10 @@
 # IoC DI
 A much smaller IoC Dependency Injector and Service Locator.
 
+```sh
+composer require grithin/ioc-di
+```
+
 ## Why
 -	PHP DI was too big
 -	needed unfound features
