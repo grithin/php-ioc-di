@@ -1,7 +1,7 @@
 <?php
 namespace Grithin;
 
-use Grithin\IoC\{ServiceNotFound, ContainerException};
+use Grithin\IoC\{ServiceNotFound, ContainerException, Datum, Service};
 
 /**
 
@@ -28,9 +28,10 @@ class ServiceLocator{
 	/** params
 	< options >
 		check_all: < t: bool , whether to check all classes >
+		data: < data array to use for DataLocator > < defaults to $_ENV >
 	*/
 	public function __construct($options=[]){
-		$defaults = ['check_all'=>false];
+		$defaults = ['check_all'=>false, 'data'=>&$_ENV];
 		$options = array_merge($defaults, $options);
 		$this->check_all = $options['check_all'];
 
@@ -38,11 +39,13 @@ class ServiceLocator{
 		/**
 		set up DI to use this ServiceLocator and to resolve parameters that are services
 		*/
-		$this->injector = new DependencyInjector($getter, ['service_resolve'=>true]);
+		$this->injector = new DependencyInjector($this);
+		$this->data_locator = new DataLocator($options['data']);
 
 		# bind itself and the injector
 		$this->singleton(__CLASS__, $this);
 		$this->singleton(DependencyInjector::class, $this->injector);
+		$this->singleton(DataLocator::class, $this->data_locator);
 
 		# bind PSR container
 		$this->singleton('Psr\\Container\\ContainerInterface', 'Grithin\\PsrServiceLocator', ['with'=>[$this]]);
@@ -54,8 +57,16 @@ class ServiceLocator{
 	public function injector_set($injector){
 		$this->injector = $injector;
 	}
+	public function data_locator_get(){
+		return $this->data_locator;
+	}
+	public function data_locator_set($data_locator){
+		$this->data_locator = $data_locator;
+	}
+
+
 	public function has($id){
-		if(isset($this->services[$id])){
+		if(isset($this->services[$id]) || array_key_exists($id, $this->services)){
 			return true;
 		}
 		return false;
@@ -87,6 +98,9 @@ class ServiceLocator{
 	}
 	public $getting = [];
 
+	/** get a service
+
+	*/
 	public function &get($id, $options=[]){
 		#+ check for circular dependency {
 		if(count(array_keys($this->getting, $id)) > 1){
@@ -95,7 +109,7 @@ class ServiceLocator{
 		#+ }
 		$this->getting[] = $id;
 		try{
-			$result = &$this->resolve($id);
+			$result = &$this->resolve($id, $options);
 		}catch(\Exception $e){
 			/*
 			need to clear the `getting` so if another exception handler
@@ -113,7 +127,7 @@ class ServiceLocator{
 	< options > < options to pass in to the dependency injector when constructing the service >
 	*/
 	public function &resolve($id, $options=[]){
-		if(isset($this->services[$id])){ #< service exists
+		if($this->has($id)){
 			#+ check for singleton that has already been formed {
 			$is_singleton = false;
 			if(!empty($this->singletons_ids[$id])){
@@ -130,6 +144,17 @@ class ServiceLocator{
 				Since options include other arrays `with` `default`, they will be overwritten
 				on the merge, allowing the choice to clear out the options bound to the service
 			*/
+
+			#+ check for special cases {
+			if(is_object($service)){
+				if($service instanceof Service){
+					return $this->get($service->id, array_merge($service->options, $options));
+				}
+				if($service instanceof Datum){
+					$service = $this->data_locator->get($service->id);
+				}
+			}
+			#+ }
 			$options = array_merge($service_options, $options);
 
 			if(is_string($service)){

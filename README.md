@@ -54,8 +54,6 @@ $class2_instance = $di->call_with('class2_construct', ['bob'=> new \Grithin\IoC\
 
 ```
 
-## DependencyInjector
-DI can be used by itself without the SL in this package.  You either provide it a `getter` in the constructor, or let it use its very simple default.
 
 ## ServiceLocator
 Will also accept odd variables:
@@ -81,6 +79,17 @@ An example of the utility of this can be seen in how SL implements PSR 11.
 To avoid instantiating an object for a default value, a `\Grithin\IoC\Service` can be used.
 ```php
 $service = new \Grithin\IoC\Service($service_name, $injection_options);
+```
+
+
+## Datum
+After reviewing symfony DI after writing this, I noticed they had a nice "Param".  It makes sense that a service may want to be set prior to the configuration/param is available for that service.  As such, I've added a DataLocator.  This can be provided as an option to the SL, but $_ENV is used by reference as default.  And, as such, DI and SL will specially handle Datum objects:
+
+```php
+use \Grithin\IoC\Datum;
+$sl->bind('class1', new Datum('class1 replacement'));
+$sl->data_locator->set('class1 replacement', 'class2');
+$class2 = $sl->get('class1');
 ```
 
 

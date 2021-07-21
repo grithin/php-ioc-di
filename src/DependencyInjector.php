@@ -1,7 +1,7 @@
 <?php
 namespace Grithin;
 
-use Grithin\IoC\{MissingParam, MethodVisibility, ContainerException};
+use Grithin\IoC\{MissingParam, MethodVisibility, ContainerException, Service, Datum};
 
 
 /**
@@ -22,29 +22,12 @@ In the case of #2, it is likely that the parameter is not typed to something DI 
 
 
 class DependencyInjector{
-	/** params
-	< getter > < the callable that gets unresolved dependencies >
-	*/
-	public function __construct($getter=null){
-		if(!$getter){
-			$getter = [$this, 'getter_default'];
-		}
-		$this->getter_set($getter);
-	}
-	public function getter_set($getter){
-		if(!is_callable(($getter))){
-			throw new \Exception('Getter is not callable');
-		}
-		$this->getter = $getter;
+	/** set service locator */
+	public function __construct($ServiceLocator){
+		$this->sl = $ServiceLocator;
 	}
 	public function get($key, $options=[]){
-		return ($this->getter)($key, $options);
-	}
-	public function getter_default($key, $options=[]){
-		if(class_exists($key)){
-			return new $key;
-		}
-		return new \Exception;
+		return $this->sl->get($key, $options);
 	}
 	public function parameter_by_type($param){
 		$type = $param->getType();
@@ -172,7 +155,7 @@ class DependencyInjector{
 		foreach($params as $k=>$param){
 			#+ handle injecting name or positional specific parameters {
 			if(isset($with[$k])){
-				$with[$k] = $this->service_resolve($with[$k]);
+				$with[$k] = $this->special_resolve($with[$k]);
 				# don't insert wrong types
 				if($this->type_match($param, $with[$k])){
 					$params_to_inject[$k] = $with[$k];
@@ -182,7 +165,7 @@ class DependencyInjector{
 			}else{
 				$name = $param->getName();
 				if(isset($with[$name])){
-					$with[$name] = $this->service_resolve($with[$name]);
+					$with[$name] = $this->special_resolve($with[$name]);
 					# don't insert wrong types
 					if($this->type_match($param, $with[$name])){
 						$params_to_inject[$k] = $with[$name];
@@ -206,7 +189,7 @@ class DependencyInjector{
 			#+ }
 			#+ use defaulting name or positional values {
 			if(isset($default[$k])){
-				$default[$k] = $this->service_resolve($default[$k]);
+				$default[$k] = $this->special_resolve($default[$k]);
 				# don't insert wrong types
 				if($this->type_match($param, $default[$k])){
 					$params_to_inject[$k] = $default[$k];
@@ -215,7 +198,7 @@ class DependencyInjector{
 			}else{
 				$name = $param->getName();
 				if(isset($default[$name])){
-					$default[$name] = $this->service_resolve($default[$name]);
+					$default[$name] = $this->special_resolve($default[$name]);
 					# don't insert wrong types
 					if($this->type_match($param, $default[$name])){
 						$params_to_inject[$k] = $default[$name];
@@ -243,9 +226,12 @@ class DependencyInjector{
 	}
 
 	/** resolve parameters that are service objects */
-	public function service_resolve($v){
-		if($v instanceof IoC\Service){
+	public function special_resolve($v){
+		if($v instanceof Service){
 			return $this->get($v->id, $v->options);
+		}
+		if($v instanceof Datum){
+			return $this->sl->data_locator->get($v->id);
 		}
 		return $v;
 	}

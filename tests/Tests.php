@@ -6,13 +6,13 @@ use \Grithin\Time;
 use \Grithin\Arrays;
 use \Grithin\DependencyInjector;
 use \Grithin\ServiceLocator;
-use \Grithin\IoC\{NotFound, Service, ContainerException, MissingParam};
+use \Grithin\IoC\{NotFound, ContainerException, MissingParam, Datum, Service};
 
 
 use \Grithin\GlobalFunctions;
 
 # toggle to silence ppe and pp during debugging
-GlobalFunctions::$silence = true;
+#GlobalFunctions::$silence = true;
 
 
 interface interface1{}
@@ -59,6 +59,11 @@ class class7_construct{
 	}
 }
 class class9 extends class5{}
+class class10 extends class9{
+	function __construct($x){
+		$this->x = $x;
+	}
+}
 
 
 function function1(class7_construct $bob){
@@ -299,5 +304,46 @@ class Tests extends TestCase{
 		$sl->singleton(class9::class, $c2);
 		$got = $sl->get(class9::class);
 		$this->assertEquals('bob', $got->bob);
+	}
+	function test_override_options(){
+		$sl = new ServiceLocator;
+		$sl->bind(class10::class, class10::class, ['with'=>['bill']]);
+		$sl->bind(class9::class, class10::class, ['with'=>['bob']]);
+		$got = $sl->get(class9::class);
+		$this->assertEquals('bob', $got->x);
+	}
+
+	function test_special_cases(){
+		$sl = new ServiceLocator;
+
+		# test Service.  Although, I can't think of a reason it would be used here
+		$sl->bind(class10::class, class10::class, ['with'=>['bill']]);
+		$sl->bind(class9::class, new Service(class10::class, ['with'=>['bob']]));
+		$got = $sl->get(class9::class);
+		$this->assertEquals('bob', $got->x);
+
+		# test Datum fails on no Datum
+		$sl->bind(class9::class, new Datum(class10::class), ['with'=>['bob']]);
+		$closure = function() use ($sl){
+			$got = $sl->get(class9::class);
+		};
+		$result = $this->assert_exception($closure, '', ContainerException::class);
+
+		# test Datum resolution
+		$sl->data_locator->set(class10::class, class10::class);
+		$got = $sl->get(class9::class);
+		$this->assertEquals('bob', $got->x);
+
+		# test with overwrite
+		$sl->bind(class9::class, new Datum(class10::class));
+		$got = $sl->get(class9::class);
+		$this->assertEquals('bill', $got->x);
+
+		# test Datum injection
+		$sl->bind(class10::class, class10::class, ['with'=>[new Datum('name')]]);
+		$sl->data_locator->set('name', 'man');
+		$got = $sl->get(class9::class);
+		$this->assertEquals('man', $got->x);
+
 	}
 }
