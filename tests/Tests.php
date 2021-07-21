@@ -269,7 +269,6 @@ class Tests extends TestCase{
 		$result = $this->assert_exception($closure, 'no exception', 'Grithin\\IoC\\InjectionCallException');
 	}
 	function test_missing_param(){
-		GlobalFunctions::$silence = false;
 		$sl = new ServiceLocator;
 		$di = $sl->injector_get();
 		$closure = function() use ($di){
@@ -278,7 +277,6 @@ class Tests extends TestCase{
 		$result = $this->assert_exception($closure, '', MissingParam::class);
 	}
 	function test_sl_exception(){
-		GlobalFunctions::$silence = false;
 		$sl = new ServiceLocator;
 		$di = $sl->injector_get();
 		$closure = function() use ($di){
@@ -287,4 +285,19 @@ class Tests extends TestCase{
 		$result = $this->assert_exception($closure, '', ContainerException::class);
 	}
 
+	function test_singleton(){
+		$sl = new ServiceLocator;
+		$c1 = new class9;
+		$c1->bob = 'bill';
+		$sl->singleton(class9::class, $c1);
+		$got = $sl->get(class9::class);
+		$this->assertEquals('bill', $got->bob);
+
+		# test overwriting
+		$c2 = new class9;
+		$c2->bob = 'bob';
+		$sl->singleton(class9::class, $c2);
+		$got = $sl->get(class9::class);
+		$this->assertEquals('bob', $got->bob);
+	}
 }

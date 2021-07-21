@@ -28,7 +28,7 @@ class class3 implements interface1_1{}
 
 $sl = new ServiceLocator;
 $di = $sl->injector_get();
-$sl->bind(class1::class)
+$sl->bind(class1::class);
 
 # IoC injection of constructor
 $class2_instance = $di->call('class2_construct');

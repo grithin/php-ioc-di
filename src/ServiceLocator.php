@@ -40,6 +40,10 @@ class ServiceLocator{
 		*/
 		$this->injector = new DependencyInjector($getter, ['service_resolve'=>true]);
 
+		# bind itself and the injector
+		$this->singleton(__CLASS__, $this);
+		$this->singleton(DependencyInjector::class, $this->injector);
+
 		# bind PSR container
 		$this->singleton('Psr\\Container\\ContainerInterface', 'Grithin\\PsrServiceLocator', ['with'=>[$this]]);
 	}
@@ -60,7 +64,14 @@ class ServiceLocator{
 	If the singleton is already initializaed, the options won't have an effect
 	*/
 	public function singleton($id, $thing, $options=[]){
-		$this->singletons[$id] = true;
+		# mark as a singleton
+		$this->singletons_ids[$id] = true;
+
+		# clear previous entry result
+		if(isset($this->singletons[$id])){
+			unset($this->singletons[$id]);
+		}
+		# bind
 		$this->bind($id, $thing, $options);
 	}
 	public function set($id, $thing){
