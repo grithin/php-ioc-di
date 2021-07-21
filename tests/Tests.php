@@ -12,7 +12,7 @@ use \Grithin\IoC\Service;
 use \Grithin\GlobalFunctions;
 
 # toggle to silence ppe and pp during debugging
-#GlobalFunctions::$silence = true;
+# GlobalFunctions::$silence = true;
 
 
 interface interface1{}
@@ -73,9 +73,22 @@ class class8{
 	}
 }
 
+class classB{
+	public function __construct(classC $bob){
+		$this->bob = $bob;
+	}
+}
+class classC{
+	public function __construct($bob='bill'){
+		$this->bob = $bob;
+	}
+	protected function bill(){}
+}
 
 
-class RecordClassTests extends TestCase{
+class Tests extends TestCase{
+	use Bootstrap\Test;
+
 	function test_ioc(){
 		$sl = new ServiceLocator;
 		$di = $sl->injector_get();
@@ -220,9 +233,27 @@ class RecordClassTests extends TestCase{
 		$result = $di->call($closure);
 		$this->assertTrue($result instanceof \Grithin\PsrServiceLocator, 'PSR 11 fails injection');
 		$this->assertTrue($result->sl instanceof \Grithin\ServiceLocator, 'PSR 11 fails injection');
+	}
 
+	function test_bad_type(){
+		$sl = new ServiceLocator;
+		$di = $sl->injector_get();
+		$sl->bind('classC');
 
+		$closure = function() use ($di){
+			return $di->call('classB', ['with'=>['bob'=>'mill']]);
+		};
+		$result = $this->assert_no_exception($closure);
+		$this->assertEquals('bill', $result->bob->bob);
+	}
 
-
+	function test_nonpublic(){
+		$sl = new ServiceLocator;
+		$di = $sl->injector_get();
+		$closure = function() use ($di){
+			$classC = new classC;
+			return $di->call([$classC, 'bill']);
+		};
+		$result = $this->assert_exception($closure);
 	}
 }

@@ -21,18 +21,12 @@ In the case of #2, it is likely that the parameter is not typed to something DI 
 class DependencyInjector{
 	/** params
 	< getter > < the callable that gets unresolved dependencies >
-	< options >
-		service_resolve: < if a parameter ends up being of type Grithin\IoC\Service, resolve it >
 	*/
-	public function __construct($getter=null, $options=[]){
+	public function __construct($getter=null){
 		if(!$getter){
 			$getter = [$this, 'getter_default'];
 		}
 		$this->getter_set($getter);
-
-		$defaults = ['service_resolve' => false];
-		$options = array_merge($defaults, $options);
-		$this->service_resolve = $options['service_resolve'];
 	}
 	public function getter_set($getter){
 		if(!is_callable(($getter))){
@@ -52,14 +46,14 @@ class DependencyInjector{
 	public function parameter_by_type($param){
 		$type = $param->getType();
 		if(!$type){
-			return new \Exception;
+			throw new \Exception;
 		}
 		if($type instanceof ReflectionUnionType){
 			# just get the first type of a union
 			$type = $type->getTypes()[0];
 		}
 		if($type->isBuiltin()){ # don't try to resolve a Builtin type
-			return new \Exception;
+			throw new \Exception;
 		}
 		$type_name = $type->getName();
 		return $this->get($type_name);
@@ -124,11 +118,16 @@ class DependencyInjector{
 	}
 	public function static_method_call($class, $method, $options=[]){
 		$options = array_merge($options, ['false_on_missing'=>true]);
-		$params = $this->method_resolve_parameters($class, $method, $options);
+
+		$reflect = new \ReflectionMethod($class, $method);
+		if(!$reflect->isPublic()){
+			throw new \Exception('non public method');
+		}
+		$params = $this->parameters_resolve($reflect->getParameters(), $options);
 		if($params === false){
 			throw new \Exception('missing parameter');
 		}
-		$reflect = new \ReflectionMethod($class, $method);
+
 		return $reflect->invokeArgs(null, $params);
 	}
 	public function method_call($object, $method, $options=[]){
@@ -138,11 +137,15 @@ class DependencyInjector{
 		}
 		#+ }
 		$options = array_merge($options, ['false_on_missing'=>true]);
-		$params = $this->method_resolve_parameters($object, $method, $options);
+
+		$reflect = new \ReflectionMethod($object, $method);
+		if(!$reflect->isPublic()){
+			throw new \Exception('non public method');
+		}
+		$params = $this->parameters_resolve($reflect->getParameters(), $options);
 		if($params === false){
 			throw new \Exception('missing parameter');
 		}
-		$reflect = new \ReflectionMethod($object, $method);
 		return $reflect->invokeArgs($object, $params);
 	}
 	# see parameters_resolve for $options
@@ -183,32 +186,50 @@ class DependencyInjector{
 		foreach($params as $k=>$param){
 			#+ handle injecting name or positional specific parameters {
 			if(isset($with[$k])){
-				$params_to_inject[$k] = $with[$k];
-				continue;
+				$with[$k] = $this->service_resolve($with[$k]);
+				# don't insert wrong types
+				if($this->type_match($param, $with[$k])){
+					$params_to_inject[$k] = $with[$k];
+					continue;
+				}
+
 			}else{
 				$name = $param->getName();
 				if(isset($with[$name])){
-					$params_to_inject[$k] = $with[$name];
-					continue;
+					$with[$name] = $this->service_resolve($with[$name]);
+					# don't insert wrong types
+					if($this->type_match($param, $with[$name])){
+						$params_to_inject[$k] = $with[$name];
+						continue;
+					}
 				}
 			}
 			#+ }
 			#+ handle type declared parameters {
-			$value = $this->parameter_by_type($param);
-			if(!($value instanceof \Exception)){ #< it was resolved
+			try{
+				$value = $this->parameter_by_type($param);
 				$params_to_inject[$k] = $value;
 				continue;
-			}
+			}catch(\Exception $e){}
+
 			#+ }
 			#+ use defaulting name or positional values {
 			if(isset($default[$k])){
-				$params_to_inject[$k] = $default[$k];
-				continue;
+				$default[$k] = $this->service_resolve($default[$k]);
+				# don't insert wrong types
+				if($this->type_match($param, $default[$k])){
+					$params_to_inject[$k] = $default[$k];
+					continue;
+				}
 			}else{
 				$name = $param->getName();
 				if(isset($default[$name])){
-					$params_to_inject[$k] = $default[$name];
-					continue;
+					$default[$name] = $this->service_resolve($default[$name]);
+					# don't insert wrong types
+					if($this->type_match($param, $default[$name])){
+						$params_to_inject[$k] = $default[$name];
+						continue;
+					}
 				}
 			}
 			#+ }
@@ -223,16 +244,37 @@ class DependencyInjector{
 			}
 			#+ }
 		}
-		#+ resolve services {
-		if($this->service_resolve){
-			foreach($params_to_inject as &$v){
-				if($v instanceof IoC\Service){
-					$v = $this->get($v->id);
+		return $params_to_inject;
+	}
+
+	/** resolve parameters that are service objects */
+	public function service_resolve($v){
+		if($v instanceof IoC\Service){
+			return $this->get($v->id, $v->options);
+		}
+		return $v;
+	}
+
+	/** check if a value matches the type of a parameter */
+	public function type_match($param, $value){
+		$type = $param->getType();
+		if(!$type){
+			return true;
+		}
+		if($type instanceof ReflectionUnionType){
+			$types = $type->getTypes();
+		}else{
+			$types = [$type];
+		}
+		$value_type = gettype($value);
+		foreach($types as $type){
+			if($type->isBuiltin()){
+				if($value_type == $type->getName()){
+					return true;
 				}
+			}elseif(is_a($value, $type->getName())){
+				return true;
 			}
 		}
-
-		#+ }
-		return $params_to_inject;
 	}
 }

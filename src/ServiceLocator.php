@@ -24,19 +24,15 @@ class ServiceLocator{
 	public $singletons = []; # list of singleton returns
 
 	public $check_all; # whether SL will check all existing classes, or just those in services
-	public $throw; # whether the throw exception or return
-	public $silent = false; # whether the throw exception or return, for this call
 
 	/** params
 	< options >
 		check_all: < t: bool , whether to check all classes >
-		throw: < whether to throw exception or return it >
 	*/
 	public function __construct($options=[]){
-		$defaults = ['check_all'=>false, 'throw'=>true];
+		$defaults = ['check_all'=>false];
 		$options = array_merge($defaults, $options);
 		$this->check_all = $options['check_all'];
-		$this->throw = $options['throw'];
 
 		$getter = function($key) { return $this->get_silent($key); };
 		/**
@@ -46,13 +42,6 @@ class ServiceLocator{
 
 		# bind PSR container
 		$this->singleton('Psr\\Container\\ContainerInterface', 'Grithin\\PsrServiceLocator', ['with'=>[$this]]);
-	}
-
-	public function throw($exception){
-		if($this->silent || !$this->throw){
-			return $exception;
-		}
-		throw $exception;
 	}
 
 	public function injector_get(){
@@ -94,11 +83,10 @@ class ServiceLocator{
 		return $result;
 	}
 
-	public function &get(String $id, $options=[]){
+	public function &get($id, $options=[]){
 		#+ check for circular dependency {
 		if(count(array_keys($this->getting, $id)) > 1){
-			$result = $this->throw(new IoC\Exception('Circular dependency'));
-			return $result;
+			throw new IoC\Exception('Circular dependency');
 		}
 		#+ }
 		$this->getting[] = $id;
@@ -156,8 +144,7 @@ class ServiceLocator{
 					return $resolved;
 				}
 				#+ }
-				$result = $this->throw(new Ioc\Exception('Could not make service from string "'.$service.'"'));
-				return $result;
+				throw new Ioc\Exception('Could not make service from string "'.$service.'"');
 			}elseif($service instanceof \Closure){
 				# probably a factory
 				$resolved = $this->injector->call($service, $options);
@@ -191,7 +178,7 @@ class ServiceLocator{
 				$result = $this->by_interface($id, $options);
 			}
 			if(!$result){
-				$result = $this->throw(new NotFound($id));
+				throw new NotFound($id);
 			}
 			return $result;
 		}

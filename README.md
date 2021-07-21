@@ -77,6 +77,12 @@ An example of the utility of this can be seen in how SL implements PSR 11.
 @SideNote A `get` with options instigating a `bind` should not bind the options to the new service.  If the get is being used with options, it is expected further `get`'s to that service will also use options.
 
 
+## Service Object
+To avoid instantiating an object for a default value, a `\Grithin\IoC\Service` can be used.
+```php
+$service = new \Grithin\IoC\Service($service_name, $injection_options);
+```
+
 
 ## Notes
 By default, SL does not check all classes to resolve an interface or abstract class, it only checks what is within the services (by id).  You can make it check everything though:
