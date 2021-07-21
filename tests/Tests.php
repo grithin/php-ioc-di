@@ -6,13 +6,13 @@ use \Grithin\Time;
 use \Grithin\Arrays;
 use \Grithin\DependencyInjector;
 use \Grithin\ServiceLocator;
-use \Grithin\IoC\NotFound;
-use \Grithin\IoC\Service;
+use \Grithin\IoC\{NotFound, Service, ContainerException, MissingParam};
+
 
 use \Grithin\GlobalFunctions;
 
 # toggle to silence ppe and pp during debugging
-# GlobalFunctions::$silence = true;
+GlobalFunctions::$silence = true;
 
 
 interface interface1{}
@@ -85,9 +85,21 @@ class classC{
 	protected function bill(){}
 }
 
+class classD1{# no such classD2
+	public function __construct(classD2 $bob){
+		$this->bob = $bob;
+	}
+}
+class classE1{# Missing param
+	public function __construct($bob){
+		$this->bob = $bob;
+	}
+}
+
+
 
 class Tests extends TestCase{
-	use Bootstrap\Test;
+	use \Grithin\Phpunit\TestTrait;
 
 	function test_ioc(){
 		$sl = new ServiceLocator;
@@ -256,4 +268,23 @@ class Tests extends TestCase{
 		};
 		$result = $this->assert_exception($closure, 'no exception', 'Grithin\\IoC\\InjectionCallException');
 	}
+	function test_missing_param(){
+		GlobalFunctions::$silence = false;
+		$sl = new ServiceLocator;
+		$di = $sl->injector_get();
+		$closure = function() use ($di){
+			return $di->call('classE1');;
+		};
+		$result = $this->assert_exception($closure, '', MissingParam::class);
+	}
+	function test_sl_exception(){
+		GlobalFunctions::$silence = false;
+		$sl = new ServiceLocator;
+		$di = $sl->injector_get();
+		$closure = function() use ($di){
+			return $di->call('classD1');;
+		};
+		$result = $this->assert_exception($closure, '', ContainerException::class);
+	}
+
 }

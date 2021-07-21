@@ -1,7 +1,7 @@
 <?php
 namespace Grithin;
 
-use Grithin\IoC\NotFound;
+use Grithin\IoC\{ServiceNotFound, ContainerException};
 
 /**
 
@@ -34,7 +34,7 @@ class ServiceLocator{
 		$options = array_merge($defaults, $options);
 		$this->check_all = $options['check_all'];
 
-		$getter = function($key) { return $this->get_silent($key); };
+		$getter = function($key, $options=[]) { return $this->get($key, $options); };
 		/**
 		set up DI to use this ServiceLocator and to resolve parameters that are services
 		*/
@@ -75,18 +75,11 @@ class ServiceLocator{
 		$this->services_options[$id] = $options;
 	}
 	public $getting = [];
-	/** get, but don't throw exception if missing.  Return it instead .*/
-	public function &get_silent($id, $options=[]){
-		$this->silent = true;
-		$result = $this->get($id);
-		$this->silent = false;
-		return $result;
-	}
 
 	public function &get($id, $options=[]){
 		#+ check for circular dependency {
 		if(count(array_keys($this->getting, $id)) > 1){
-			throw new IoC\Exception('Circular dependency');
+			throw new ContainerException('Circular dependency');
 		}
 		#+ }
 		$this->getting[] = $id;
@@ -144,7 +137,7 @@ class ServiceLocator{
 					return $resolved;
 				}
 				#+ }
-				throw new Ioc\Exception('Could not make service from string "'.$service.'"');
+				throw new ContainerException('Could not make service from string "'.$service.'"');
 			}elseif($service instanceof \Closure){
 				# probably a factory
 				$resolved = $this->injector->call($service, $options);
@@ -178,7 +171,7 @@ class ServiceLocator{
 				$result = $this->by_interface($id, $options);
 			}
 			if(!$result){
-				throw new NotFound($id);
+				throw new ServiceNotFound($id);
 			}
 			return $result;
 		}

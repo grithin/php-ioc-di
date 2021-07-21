@@ -1,7 +1,7 @@
 <?php
 namespace Grithin;
 
-use Grithin\IoC\{MissingParam, MethodVisibility};
+use Grithin\IoC\{MissingParam, MethodVisibility, ContainerException};
 
 
 /**
@@ -37,10 +37,10 @@ class DependencyInjector{
 		}
 		$this->getter = $getter;
 	}
-	public function get($key){
-		return ($this->getter)($key);
+	public function get($key, $options=[]){
+		return ($this->getter)($key, $options);
 	}
-	public function getter_default($key){
+	public function getter_default($key, $options=[]){
 		if(class_exists($key)){
 			return new $key;
 		}
@@ -100,11 +100,7 @@ class DependencyInjector{
 	}
 
 	public function class_construct($class, $options=[]){
-		$options = array_merge($options, ['false_on_missing'=>true]);
 		$params = $this->class_resolve_parameters($class, $options);
-		if($params === false){
-			throw new MissingParam;
-		}
 		$reflect = new \ReflectionClass($class);
 		return $reflect->newInstanceArgs($params);
 	}
@@ -120,16 +116,12 @@ class DependencyInjector{
 		return $this->parameters_resolve($params, $options);
 	}
 	public function static_method_call($class, $method, $options=[]){
-		$options = array_merge($options, ['false_on_missing'=>true]);
 
 		$reflect = new \ReflectionMethod($class, $method);
 		if(!$reflect->isPublic()){
 			throw new MethodVisibility;
 		}
 		$params = $this->parameters_resolve($reflect->getParameters(), $options);
-		if($params === false){
-			throw new MissingParam;
-		}
 
 		return $reflect->invokeArgs(null, $params);
 	}
@@ -139,16 +131,12 @@ class DependencyInjector{
 			return $this->static_method_call($object, $method, $options);
 		}
 		#+ }
-		$options = array_merge($options, ['false_on_missing'=>true]);
 
 		$reflect = new \ReflectionMethod($object, $method);
 		if(!$reflect->isPublic()){
 			throw new MethodVisibility;
 		}
 		$params = $this->parameters_resolve($reflect->getParameters(), $options);
-		if($params === false){
-			throw new MissingParam;
-		}
 		return $reflect->invokeArgs($object, $params);
 	}
 	# see parameters_resolve for $options
@@ -158,11 +146,7 @@ class DependencyInjector{
 		return $this->parameters_resolve($params, $options);
 	}
 	public function function_call($function, $options=[]){
-		$options = array_merge($options, ['false_on_missing'=>true]);
 		$params = $this->function_resolve_parameters($function, $options);
-		if($params === false){
-			throw new MissingParam;
-		}
 		$reflect = new \ReflectionFunction($function);
 		return $reflect->invokeArgs($params);
 	}
@@ -176,12 +160,11 @@ class DependencyInjector{
 
 	/**
 	< options >
-		false_on_missing: < t: bool > < whether to return false if there is a missing parameter >
 		with: < dictionary of parameters to inject by position or name, ahead of type declaration injection >;
 		default:  < dictionary of parameters to inject by position or name, if type declaration fails >;
 	*/
 	public function parameters_resolve($params, $options){
-		$defaults = ['default'=>[], 'with'=>[], 'false_on_missing'=>false];
+		$defaults = ['default'=>[], 'with'=>[]];
 
 		extract(array_merge($defaults, $options));
 
@@ -209,11 +192,16 @@ class DependencyInjector{
 			}
 			#+ }
 			#+ handle type declared parameters {
+			$container_exception = null;
 			try{
 				$value = $this->parameter_by_type($param);
 				$params_to_inject[$k] = $value;
 				continue;
-			}catch(\Exception $e){}
+			}catch(\Exception $e){
+				if($e instanceof ContainerException){
+					$container_exception = $e;
+				}
+			}
 
 			#+ }
 			#+ use defaulting name or positional values {
@@ -241,11 +229,15 @@ class DependencyInjector{
 				$params_to_inject[$k] = $param->getDefaultValue();
 				continue;
 			}
-
-			if($options['false_on_missing']){
-				return false;
-			}
 			#+ }
+
+			#+ parameter is missing, throw exception {\}
+			if($container_exception){ # if SL returned exception, use that
+				throw $container_exception;
+			}
+			throw new MissingParam($param->getName());
+			#+ }
+
 		}
 		return $params_to_inject;
 	}

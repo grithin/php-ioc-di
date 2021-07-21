@@ -89,10 +89,6 @@ By default, SL does not check all classes to resolve an interface or abstract cl
 ```php
 $sl = new ServiceLocator(['check_all'=>true]);
 ```
-You can also prevent SL from throwing exceptions, and instead return exceptions when there is problem (like not found id)
-```php
-$sl = new ServiceLocator(['throw'=>false]);
-```
 
 
 ## FAQ
