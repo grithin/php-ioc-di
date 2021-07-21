@@ -21,12 +21,15 @@ Trait Test{
 		$output = call_user_func_array([$this->class, $method], $input);
 		$this->assertEquals($expect, $output, $message);
 	}
-	public function assert_exception($closure, $message='no exception produced'){
+	public function assert_exception($closure, $message='no exception produced', $type='Exception'){
 		try{
 			$closure();
 		}catch(\Exception $e){
-			$this->assertTrue(true);
-			return true;
+			if($e instanceof $type){
+				$this->assertTrue(true);
+				return true;
+			}
+			throw $e;
 		}
 		$this->fail($message);
 	}

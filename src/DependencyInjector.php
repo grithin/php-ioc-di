@@ -1,6 +1,9 @@
 <?php
 namespace Grithin;
 
+use Grithin\IoC\{MissingParam, MethodVisibility};
+
+
 /**
 Consideration
 
@@ -87,12 +90,12 @@ class DependencyInjector{
 			if(method_exists($thing, '__invoke')){
 				return $this->method_call($thing, '__invoke', $options);
 			}else{
-				throw new \Exception('object uncallable');
+				throw new IoC\InjectionCallException('object uncallable');
 			}
 		}elseif(is_array($thing)){
 			return $this->method_call($thing[0], $thing[1], $options);
 		}
-		throw new \Exception('uncallable');
+		throw new IoC\InjectionCallException('uncallable');
 
 	}
 
@@ -100,7 +103,7 @@ class DependencyInjector{
 		$options = array_merge($options, ['false_on_missing'=>true]);
 		$params = $this->class_resolve_parameters($class, $options);
 		if($params === false){
-			throw new \Exception('missing parameter');
+			throw new MissingParam;
 		}
 		$reflect = new \ReflectionClass($class);
 		return $reflect->newInstanceArgs($params);
@@ -121,11 +124,11 @@ class DependencyInjector{
 
 		$reflect = new \ReflectionMethod($class, $method);
 		if(!$reflect->isPublic()){
-			throw new \Exception('non public method');
+			throw new MethodVisibility;
 		}
 		$params = $this->parameters_resolve($reflect->getParameters(), $options);
 		if($params === false){
-			throw new \Exception('missing parameter');
+			throw new MissingParam;
 		}
 
 		return $reflect->invokeArgs(null, $params);
@@ -140,11 +143,11 @@ class DependencyInjector{
 
 		$reflect = new \ReflectionMethod($object, $method);
 		if(!$reflect->isPublic()){
-			throw new \Exception('non public method');
+			throw new MethodVisibility;
 		}
 		$params = $this->parameters_resolve($reflect->getParameters(), $options);
 		if($params === false){
-			throw new \Exception('missing parameter');
+			throw new MissingParam;
 		}
 		return $reflect->invokeArgs($object, $params);
 	}
@@ -158,7 +161,7 @@ class DependencyInjector{
 		$options = array_merge($options, ['false_on_missing'=>true]);
 		$params = $this->function_resolve_parameters($function, $options);
 		if($params === false){
-			throw new \Exception('missing parameter');
+			throw new MissingParam;
 		}
 		$reflect = new \ReflectionFunction($function);
 		return $reflect->invokeArgs($params);

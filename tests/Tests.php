@@ -254,6 +254,6 @@ class Tests extends TestCase{
 			$classC = new classC;
 			return $di->call([$classC, 'bill']);
 		};
-		$result = $this->assert_exception($closure);
+		$result = $this->assert_exception($closure, 'no exception', 'Grithin\\IoC\\InjectionCallException');
 	}
 }
