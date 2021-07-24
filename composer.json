@@ -3,7 +3,7 @@
     "description": "IoC DI with service container",
     "keywords": [ "IoC DI"],
     "homepage": "https://github.com/grithin/php-ioc-di",
-    "license": "MIT",
+    "license": "GPL-3.0-only",
     "require": {
         "php": ">=5.3.0",
         "psr/container": "^2.0"
