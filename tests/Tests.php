@@ -126,6 +126,7 @@ class nClass1 implements nInterface1, nInterface2{
 #+ }
 
 
+
 class Tests extends TestCase{
 	use \Grithin\Phpunit\TestTrait;
 
@@ -398,7 +399,6 @@ class Tests extends TestCase{
 		$this->assertEquals('bob', $person->name);
 	}
 	function test_data_locator(){
-		GlobalFunctions::$silence = false;
 		$sl = new ServiceLocator;
 		$dl = $sl->data_locator();
 		$di = $sl->injector();
@@ -423,5 +423,26 @@ class Tests extends TestCase{
 		$person->name = 'bill';
 		$person = $dl->get('bill');
 		$this->assertEquals('bob', $person->name);
+	}
+
+	function test_upper_case_variable(){
+		GlobalFunctions::$silence = false;
+		$sl = new ServiceLocator;
+		$dl = $sl->data_locator();
+		$di = $sl->injector();
+
+		$person = new StdClass;
+		$person->name = 'bob';
+		$sl->set('Request', $person);
+		$closure = function($Request){ return $Request; };
+		$person = $di->call($closure);
+		$this->assertTrue(is_object($person));
+		$this->assertEquals('bob', $person->name);
+
+		# override with data  (prefer data)
+		$dl->set('Request', 'bob');
+		$person = $di->call($closure);
+		$this->assertEquals('bob', $person);
+
 	}
 }

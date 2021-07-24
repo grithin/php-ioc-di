@@ -86,7 +86,7 @@ class ServiceLocator{
 	/**
 	If the singleton is already initializaed, the options won't have an effect
 	*/
-	public function singleton($id, $thing, $options=[]){
+	public function singleton($id, $thing=null, $options=[]){
 		# mark as a singleton
 		$this->singletons_ids[$id] = true;
 

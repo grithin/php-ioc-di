@@ -32,14 +32,14 @@ class DependencyInjector{
 	public function parameter_by_type($param){
 		$type = $param->getType();
 		if(!$type){
-			throw new \Exception;
+			return new ParamTypeUnusable;
 		}
 		if($type instanceof ReflectionUnionType){
 			# just get the first type of a union
 			$type = $type->getTypes()[0];
 		}
 		if($type->isBuiltin()){ # don't try to resolve a Builtin type
-			throw new \Exception;
+			return new ParamTypeUnusable;
 		}
 		$type_name = $type->getName();
 		return $this->get($type_name);
@@ -178,30 +178,51 @@ class DependencyInjector{
 					continue;
 				}
 
-			}else{
-				$name = $param->getName();
-				if(isset($with[$name])){
-					$with[$name] = $this->special_resolve($with[$name]);
-					# don't insert wrong types
-					if($this->type_match($param, $with[$name])){
-						$params_to_inject[$k] = $with[$name];
-						continue;
-					}
+			}
+			$name = $param->getName();
+			if(isset($with[$name])){
+				$with[$name] = $this->special_resolve($with[$name]);
+				# don't insert wrong types
+				if($this->type_match($param, $with[$name])){
+					$params_to_inject[$k] = $with[$name];
+					continue;
 				}
 			}
+
 			#+ }
 			#+ handle type declared parameters {
 			$container_exception = null;
 			try{
 				$value = $this->parameter_by_type($param);
-				$params_to_inject[$k] = $value;
-				continue;
+				if(!($value instanceof ParamTypeUnusable)){ # check for fail signal
+					$params_to_inject[$k] = $value;
+					continue;
+				}
 			}catch(\Exception $e){
 				if($e instanceof ContainerException){
 					$container_exception = $e;
 				}
 			}
-
+			#+ }
+			#+ handle injection based variable starting with upper case {
+			if(preg_match('/^[A-Z]/', $name)){
+				try{
+					# first see if a datum exists
+					$value = $this->sl->data_locator->get($name);
+					if($this->type_match($param, $value)){
+						$params_to_inject[$k] = $value;
+						continue;
+					}
+				}catch(\Exception $e){}
+				try{
+					# next see if a service exists
+					$value = $this->sl->get($name);
+					if($this->type_match($param, $value)){
+						$params_to_inject[$k] = $value;
+						continue;
+					}
+				}catch(\Exception $e){}
+			}
 			#+ }
 			#+ use defaulting name or positional values {
 			if(isset($defaults[$k])){
@@ -211,17 +232,16 @@ class DependencyInjector{
 					$params_to_inject[$k] = $defaults[$k];
 					continue;
 				}
-			}else{
-				$name = $param->getName();
-				if(isset($defaults[$name])){
-					$defaults[$name] = $this->special_resolve($defaults[$name]);
-					# don't insert wrong types
-					if($this->type_match($param, $defaults[$name])){
-						$params_to_inject[$k] = $defaults[$name];
-						continue;
-					}
+			}
+			if(isset($defaults[$name])){
+				$defaults[$name] = $this->special_resolve($defaults[$name]);
+				# don't insert wrong types
+				if($this->type_match($param, $defaults[$name])){
+					$params_to_inject[$k] = $defaults[$name];
+					continue;
 				}
 			}
+
 			#+ }
 			#+ use the default provided by the function {
 			if($param->isOptional()){
@@ -272,3 +292,6 @@ class DependencyInjector{
 		}
 	}
 }
+
+
+class ParamTypeUnusable{}
