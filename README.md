@@ -60,6 +60,10 @@ Will also accept odd variables:
 -	instances
 	-	if singleton, will return on get
 	-	if not singleton, will clone on get
+-	string
+	-	will try to resolve the string to either another service or a class
+-	InterprettedInterface
+	-	will interpret
 -	non-string, non object, non-closure (arrays)
 	-	if singleton, will return reference
 	-	if not singleton, will return non-reference
@@ -74,23 +78,53 @@ An example of the utility of this can be seen in how SL implements PSR 11.
 
 @SideNote A `get` with options instigating a `bind` should not bind the options to the new service.  If the get is being used with options, it is expected further `get`'s to that service will also use options.
 
+## Data Locator
+Should serve data, however there are times when it is desirable to make data just in time.  As such, ways are provided;
+-	set(): with $thing equal to Closure or Grithin\IoC\Call
+	-	this sets lazy
+-	set_lazy(): this will execute the callable once when datum is requested
+-	set_factory(): this will execute every time data is requested
 
-## Service Object
-To avoid instantiating an object for a default value, a `\Grithin\IoC\Service` can be used.
+
+## Special Type Objects
+Using Grithin\IoC\SpecialTypeInterface
+
+### Service Object
+Used by: SL, DI
+
+If you want to point to a service with options.
+If you want to provide a parameter default as an object, but don't want to instantiate the object unless it is used, the Serivce object can b used
 ```php
-$service = new \Grithin\IoC\Service($service_name, $injection_options);
+use \Grithin\IoC\Service;
+$service = new Service($service_name, $injection_options);
+$injector->call('Bob::bill', ['defaults'=>[$service]]);
 ```
 
+### Datum
+Used by: SL, DI
 
-## Datum
-After reviewing symfony DI after writing this, I noticed they had a nice "Param".  It makes sense that a service may want to be set prior to the configuration/param is available for that service.  As such, I've added a DataLocator.  This can be provided as an option to the SL, but $_ENV is used by reference as default.  And, as such, DI and SL will specially handle Datum objects:
-
+If you want to point to a datum that might be set later.
+If you want to set a parameter to a datum that will be set later.  The key will be resolved using the Data Locator when the Datum object is resolved.
 ```php
 use \Grithin\IoC\Datum;
-$sl->bind('class1', new Datum('class1 replacement'));
-$sl->data_locator->set('class1 replacement', 'class2');
-$class2 = $sl->get('class1');
+$sl->bind('ClassPerson', ['with'=>['name'=>new Datum('name')]]);
 ```
+
+### Call
+Used by: SL, DI, DL
+
+If you want to point to the result of some callable.
+```php
+use \Grithin\IoC\Call;
+$sl->bind('ClassPerson', ['with'=>['name'=>new Call('NameGetter::get_name')]]);
+```
+
+
+### Factory
+Used by: SL, DI, DL
+
+Used to indicate to DataLocator it should use thing as a factory
+
 
 
 ## Notes

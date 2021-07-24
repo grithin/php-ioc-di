@@ -6,13 +6,13 @@ use \Grithin\Time;
 use \Grithin\Arrays;
 use \Grithin\DependencyInjector;
 use \Grithin\ServiceLocator;
-use \Grithin\IoC\{NotFound, ContainerException, MissingParam, Datum, Service};
+use \Grithin\IoC\{NotFound, ContainerException, MissingParam, Datum, Service, Call, Factory};
 
 
 use \Grithin\GlobalFunctions;
 
 # toggle to silence ppe and pp during debugging
-#GlobalFunctions::$silence = true;
+GlobalFunctions::$silence = true;
 
 
 interface interface1{}
@@ -103,12 +103,35 @@ class classE1{# Missing param
 
 
 
+#+ test_method_call, test_data_locator {
+interface nInterface1{}
+interface nInterface2 extends nInterface1{}
+
+class nClass1 implements nInterface1, nInterface2{
+	public $name;
+	function __construct(){
+		$this->name = 'bob';
+	}
+	function person(){
+		$person = new StdClass;
+		$person->name = $this->name;
+		return $person;
+	}
+	static function person_static(){
+		$person = new StdClass;
+		$person->name = 'sue';
+		return $person;
+	}
+}
+#+ }
+
+
 class Tests extends TestCase{
 	use \Grithin\Phpunit\TestTrait;
 
 	function test_ioc(){
 		$sl = new ServiceLocator;
-		$di = $sl->injector_get();
+		$di = $sl->injector();
 
 		$sl->bind('class3_construct_implements_2_1');
 
@@ -161,7 +184,7 @@ class Tests extends TestCase{
 
 	function test_di_calls(){
 		$sl = new ServiceLocator;
-		$di = $sl->injector_get();
+		$di = $sl->injector();
 
 
 		# test function with IoC injection
@@ -193,7 +216,7 @@ class Tests extends TestCase{
 
 	function test_di_inject_with(){
 		$sl = new ServiceLocator;
-		$di = $sl->injector_get();
+		$di = $sl->injector();
 
 		$closure = function(class5 $bob, $sue='sue', $dan='dan'){
 			return compact('bob', 'sue', 'dan');
@@ -208,32 +231,33 @@ class Tests extends TestCase{
 		$this->assertEquals('bob', $result['dan'], 'param positional override fails');
 
 		# test default unnecessary
-		$result = $di->call($closure, ['default'=>['bob'=>new Class9]]);
+		$result = $di->call($closure, ['defaults'=>['bob'=>new Class9]]);
 		$this->assertTrue($result['bob'] instanceof class6, 'inject with default override fails');
 
 		# test default necessary
 		$closure = function(interface1 $bob){
 			return compact('bob');
 		};
-		$result = $di->call($closure, ['default'=>['bob'=>new class1_implements_1_1]]);
+		$result = $di->call($closure, ['defaults'=>['bob'=>new class1_implements_1_1]]);
 		$this->assertTrue($result['bob'] instanceof class1_implements_1_1, 'inject with default override fails');
 	}
 
 	function test_di_services(){
 		$sl = new ServiceLocator;
-		$di = $sl->injector_get();
+		$di = $sl->injector();
 
 		$closure = function(class5 $bob, $sue='sue', $dan='dan'){
 			return compact('bob', 'sue', 'dan');
 		};
 		$sl->bind('class6');
 		$result = $di->call_with($closure, ['bob'=>new Service('class9')]);
+
 		$this->assertTrue($result['bob'] instanceof class9, 'service inject with override fails');
 	}
 
 	function test_check_all(){
 		$sl = new ServiceLocator(['check_all'=>true]);
-		$di = $sl->injector_get();
+		$di = $sl->injector();
 		$closure = function(interface1 $bob){
 			return $bob;
 		};
@@ -243,7 +267,7 @@ class Tests extends TestCase{
 
 	function test_psr11(){
 		$sl = new ServiceLocator;
-		$di = $sl->injector_get();
+		$di = $sl->injector();
 		$closure = function(\Psr\Container\ContainerInterface $x){
 			return $x;
 		};
@@ -254,7 +278,7 @@ class Tests extends TestCase{
 
 	function test_bad_type(){
 		$sl = new ServiceLocator;
-		$di = $sl->injector_get();
+		$di = $sl->injector();
 		$sl->bind('classC');
 
 		$closure = function() use ($di){
@@ -266,7 +290,7 @@ class Tests extends TestCase{
 
 	function test_nonpublic(){
 		$sl = new ServiceLocator;
-		$di = $sl->injector_get();
+		$di = $sl->injector();
 		$closure = function() use ($di){
 			$classC = new classC;
 			return $di->call([$classC, 'bill']);
@@ -275,7 +299,7 @@ class Tests extends TestCase{
 	}
 	function test_missing_param(){
 		$sl = new ServiceLocator;
-		$di = $sl->injector_get();
+		$di = $sl->injector();
 		$closure = function() use ($di){
 			return $di->call('classE1');;
 		};
@@ -283,7 +307,7 @@ class Tests extends TestCase{
 	}
 	function test_sl_exception(){
 		$sl = new ServiceLocator;
-		$di = $sl->injector_get();
+		$di = $sl->injector();
 		$closure = function() use ($di){
 			return $di->call('classD1');;
 		};
@@ -344,6 +368,60 @@ class Tests extends TestCase{
 		$sl->data_locator->set('name', 'man');
 		$got = $sl->get(class9::class);
 		$this->assertEquals('man', $got->x);
+	}
 
+	function test_method_call(){
+		$sl = new ServiceLocator;
+		$di = $sl->injector();
+
+		$sl->bind(nInterface1::class, nClass1::class);
+		$person = $di->call('nInterface1::person');
+
+		$this->assertTrue(is_object($person));
+		$this->assertEquals('bob', $person->name);
+
+		$person = $di->call('nInterface1::person_static');
+
+		$this->assertTrue(is_object($person));
+		$this->assertEquals('sue', $person->name);
+	}
+	function test_call(){
+		$sl = new ServiceLocator;
+		$di = $sl->injector();
+
+		# resolves interface1 and calls method on resolved
+		$sl->bind(nInterface1::class, nClass1::class);
+		$sl->bind(nInterface2::class, new Call('nInterface1::person'));
+		$person = $sl->get(nInterface2::class);
+
+		$this->assertTrue(is_object($person));
+		$this->assertEquals('bob', $person->name);
+	}
+	function test_data_locator(){
+		GlobalFunctions::$silence = false;
+		$sl = new ServiceLocator;
+		$dl = $sl->data_locator();
+		$di = $sl->injector();
+
+		$sl->bind(nInterface1::class, nClass1::class);
+
+		# test Call datum auto set to lazy
+		$dl->set('bob', new Call('nInterface1::person'));
+		$person = $dl->get('bob');
+		$this->assertTrue(is_object($person));
+		$this->assertEquals('bob', $person->name);
+		# since lazy, re-call should be same object
+		$person->name = 'bill';
+		$person = $dl->get('bob');
+		$this->assertEquals('bill', $person->name);
+
+		$dl->set_factory('bill', new Factory('nInterface1::person'));
+		$person = $dl->get('bill');
+		$this->assertEquals('bob', $person->name);
+
+		# should produce a new instance with default name
+		$person->name = 'bill';
+		$person = $dl->get('bill');
+		$this->assertEquals('bob', $person->name);
 	}
 }

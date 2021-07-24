@@ -1,7 +1,7 @@
 <?php
 namespace Grithin;
 
-use Grithin\IoC\{MissingParam, MethodVisibility, ContainerException, Service, Datum};
+use Grithin\IoC\{MissingParam, MethodVisibility, ContainerException, Service, Datum, SpecialTypeInterface};
 
 
 /**
@@ -63,23 +63,39 @@ class DependencyInjector{
 			}
 			$parts = explode('::', $thing);
 			if(count($parts) == 2){
-				if(class_exists($parts[0]) && method_exists($parts[0], $parts[1])){
-					return $this->static_method_call($parts[0], $parts[1], $options);
-				}
+				return $this->uncertain_method_call($parts[0], $parts[1]);
 			}
 		}elseif($thing instanceof \Closure){
 			return $this->function_call($thing, $options);
 		}elseif(is_object($thing)){
+			if($thing instanceof IoC\Call){
+				return $this->call($thing->callable);
+			}
 			if(method_exists($thing, '__invoke')){
 				return $this->method_call($thing, '__invoke', $options);
 			}else{
-				throw new IoC\InjectionCallException('object uncallable');
+				throw new IoC\InjectionUncallable('object uncallable');
 			}
 		}elseif(is_array($thing)){
 			return $this->method_call($thing[0], $thing[1], $options);
 		}
-		throw new IoC\InjectionCallException('uncallable');
+		throw new IoC\InjectionUncallable('uncallable');
 
+	}
+	public function uncertain_method_call($class, $method, $options=[]){
+		if(class_exists($class) && method_exists($class, $method)){
+			$reflect = new \ReflectionMethod($class, $method);
+			if($reflect->isStatic()){
+				return $this->static_method_call($class, $method, $options);
+			}
+		}
+		# welp.  Try to get an object from SL
+		$service = $this->sl->get($class, $options);
+		if(is_object($service)){
+			return $this->method_call($service, $method, $options);
+		}else{
+			throw new IoC\InjectionUncallable('uncallable');
+		}
 	}
 
 	public function class_construct($class, $options=[]){
@@ -144,12 +160,12 @@ class DependencyInjector{
 	/**
 	< options >
 		with: < dictionary of parameters to inject by position or name, ahead of type declaration injection >;
-		default:  < dictionary of parameters to inject by position or name, if type declaration fails >;
+		defaults:  < dictionary of parameters to inject by position or name, if type declaration fails >;
 	*/
 	public function parameters_resolve($params, $options){
-		$defaults = ['default'=>[], 'with'=>[]];
+		$defaultss = ['defaults'=>[], 'with'=>[]];
 
-		extract(array_merge($defaults, $options));
+		extract(array_merge($defaultss, $options));
 
 		$params_to_inject = [];
 		foreach($params as $k=>$param){
@@ -188,20 +204,20 @@ class DependencyInjector{
 
 			#+ }
 			#+ use defaulting name or positional values {
-			if(isset($default[$k])){
-				$default[$k] = $this->special_resolve($default[$k]);
+			if(isset($defaults[$k])){
+				$defaults[$k] = $this->special_resolve($defaultss[$k]);
 				# don't insert wrong types
-				if($this->type_match($param, $default[$k])){
-					$params_to_inject[$k] = $default[$k];
+				if($this->type_match($param, $defaults[$k])){
+					$params_to_inject[$k] = $defaults[$k];
 					continue;
 				}
 			}else{
 				$name = $param->getName();
-				if(isset($default[$name])){
-					$default[$name] = $this->special_resolve($default[$name]);
+				if(isset($defaults[$name])){
+					$defaults[$name] = $this->special_resolve($defaults[$name]);
 					# don't insert wrong types
-					if($this->type_match($param, $default[$name])){
-						$params_to_inject[$k] = $default[$name];
+					if($this->type_match($param, $defaults[$name])){
+						$params_to_inject[$k] = $defaults[$name];
 						continue;
 					}
 				}
@@ -227,11 +243,8 @@ class DependencyInjector{
 
 	/** resolve parameters that are service objects */
 	public function special_resolve($v){
-		if($v instanceof Service){
-			return $this->get($v->id, $v->options);
-		}
-		if($v instanceof Datum){
-			return $this->sl->data_locator->get($v->id);
+		if($v instanceof SpecialTypeInterface){
+			return $this->sl->interpret_special($v);
 		}
 		return $v;
 	}
