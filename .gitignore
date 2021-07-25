@@ -1,4 +1,6 @@
-composer.lock
 phpstan.neon
 vendor
+*.lock
 *.cache
+*.ignore
+*.ignore.*

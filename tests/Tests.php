@@ -431,18 +431,20 @@ class Tests extends TestCase{
 		$dl = $sl->data_locator();
 		$di = $sl->injector();
 
+		$closure = function($Request){ return $Request; };
+
+		$dl->set('Request', 'bob');
+		$person = $di->call($closure);
+		$this->assertEquals('bob', $person);
+
+		# override with service  (prefer data)
 		$person = new StdClass;
 		$person->name = 'bob';
 		$sl->set('Request', $person);
-		$closure = function($Request){ return $Request; };
 		$person = $di->call($closure);
 		$this->assertTrue(is_object($person));
 		$this->assertEquals('bob', $person->name);
 
-		# override with data  (prefer data)
-		$dl->set('Request', 'bob');
-		$person = $di->call($closure);
-		$this->assertEquals('bob', $person);
 
 	}
 }

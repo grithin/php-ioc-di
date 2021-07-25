@@ -54,6 +54,8 @@ $class2_instance = $di->call_with('class2_construct', ['bob'=> new \Grithin\IoC\
 
 ```
 
+![Resolve Flow](about/di_resolution_flow.png?raw=true "Resolve Flow")
+
 
 ## ServiceLocator
 Will also accept odd variables:

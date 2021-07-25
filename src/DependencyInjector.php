@@ -165,7 +165,7 @@ class DependencyInjector{
 	public function parameters_resolve($params, $options){
 		$defaultss = ['defaults'=>[], 'with'=>[]];
 
-		extract(array_merge($defaultss, $options));
+		extract(array_merge($defaultss, $options), EXTR_SKIP);
 
 		$params_to_inject = [];
 		foreach($params as $k=>$param){
@@ -206,17 +206,25 @@ class DependencyInjector{
 			#+ }
 			#+ handle injection based variable starting with upper case {
 			if(preg_match('/^[A-Z]/', $name)){
+				/*
+				Service is checked before datum because:
+				-	naming should be handled so as not to conflict
+				-	for something like Request, it can be expected to be
+				injected either by type or by name.  As such, the two
+				should match.  Must check service first to prevent
+				mismatch, where a data key of `Request` is set
+				*/
 				try{
-					# first see if a datum exists
-					$value = $this->sl->data_locator->get($name);
+					# next see if a service exists
+					$value = $this->sl->get($name);
 					if($this->type_match($param, $value)){
 						$params_to_inject[$k] = $value;
 						continue;
 					}
 				}catch(\Exception $e){}
 				try{
-					# next see if a service exists
-					$value = $this->sl->get($name);
+					# first see if a datum exists
+					$value = $this->sl->data_locator->get($name);
 					if($this->type_match($param, $value)){
 						$params_to_inject[$k] = $value;
 						continue;
