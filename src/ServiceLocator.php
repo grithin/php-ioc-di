@@ -214,6 +214,12 @@ class ServiceLocator{
 			}
 			$clone = clone $service;
 			return $clone;
+		}elseif(is_array($service) && count($service) == 2){
+			# might be a method or function call
+			try{
+				$this->injector->call($service);
+			}catch(IoC\InjectionUncallable $e){}
+			#+ }
 		}else{
 			# service is some othere data structure (like array).  Return reference if singleton
 			if($is_singleton){
@@ -330,5 +336,4 @@ class ServiceLocator{
 		}
 		#+ }
 	}
-
 }

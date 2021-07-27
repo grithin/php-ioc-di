@@ -444,7 +444,15 @@ class Tests extends TestCase{
 		$person = $di->call($closure);
 		$this->assertTrue(is_object($person));
 		$this->assertEquals('bob', $person->name);
+	}
+	function test_datum_path(){
+		GlobalFunctions::$silence = false;
+		$sl = new ServiceLocator;
+		$dl = $sl->data_locator();
 
-
+		$dl->set('person', ['parent'=>['parent'=>'bob']]);
+		$Datum = new Datum('person', 'parent.parent');
+		$x = $dl->resolve_datum($Datum);
+		$this->assertEquals('bob', $x);
 	}
 }

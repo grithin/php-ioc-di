@@ -1,6 +1,7 @@
 <?php
 namespace Grithin;
 
+use Grithin\Arrays;
 use Grithin\IoC\{DataNotFound, Call, Factory};
 
 /** simple container */
@@ -53,6 +54,14 @@ class DataLocator{
 		}else{
 			return $this->set_datum($id, $thing);
 		}
+	}
+	/** resolve a Datum object to some value */
+	public function resolve_datum($Datum){
+		$value = $this->get($Datum->id);
+		if($Datum->path){
+			$value = Arrays::get($value, $Datum->path);
+		}
+		return $value;
 	}
 	public function set_datum($id, $thing){
 		$this->data[$id] = $thing;
