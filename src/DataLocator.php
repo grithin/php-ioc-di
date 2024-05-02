@@ -2,7 +2,7 @@
 namespace Grithin;
 
 use Grithin\Arrays;
-use Grithin\IoC\{DataNotFound, Call, Factory};
+use Grithin\IoC\{DataNotFound, Call, Factory, Datum};
 
 /** simple container */
 class DataLocator{
@@ -15,6 +15,10 @@ class DataLocator{
 		$this->data = &$data;
 	}
 	public function get($id){
+		# may be providing a Datum object instead of an id
+		if($id instanceof Datum){
+			return $this->resolve_datum($id);
+		}
 		if($this->has_datum($id)){
 			return $this->get_datum($id);
 		}elseif($this->has_lazy($id)){
@@ -22,7 +26,7 @@ class DataLocator{
 		}elseif($this->has_factory($id)){
 			return $this->get_by_factory($id);
 		}
-		throw new DataNotFound($id);
+		throw new DataNotFound($id, 'Datum not found: '.$id);
 
 	}
 	public function get_datum($id){

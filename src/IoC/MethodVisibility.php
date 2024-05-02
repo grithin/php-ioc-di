@@ -1,4 +1,4 @@
 <?php
 namespace Grithin\IoC;
 
-class MethodVisibility extends InjectionCallException{};
+class MethodVisibility extends \Psg\Sr3\ComplexException implements InjectionCallExceptionInterface{};

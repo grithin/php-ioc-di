@@ -2,4 +2,6 @@
 
 namespace Grithin\IoC;
 
-class MissingParam extends InjectionCallException{};
+use Psg\Sr3\ComplexException;
+
+class MissingParam extends ComplexException implements InjectionCallExceptionInterface{};

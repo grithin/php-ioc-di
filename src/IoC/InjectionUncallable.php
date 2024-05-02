@@ -2,4 +2,7 @@
 
 namespace Grithin\IoC;
 
-class InjectionUncallable extends InjectionCallException{};
+
+use Psg\Sr3\ComplexException;
+
+class InjectionUncallable extends ComplexException implements InjectionCallExceptionInterface{};

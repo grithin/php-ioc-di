@@ -118,10 +118,10 @@ class ServiceLocator{
 	public function &get($id, $options=[]){
 		#+ check for circular dependency {
 		if(count(array_keys($this->getting, $id)) > 1){
-			throw new ContainerException('Circular dependency');
+			throw new ContainerException($id, 'Circular dependency: '.$id);
 		}
 		if(count($this->getting) > $this->max_depth){
-			throw new ContainerException('Max Depth in SL met');
+			throw new ContainerException($id, 'Max Depth in SL met: '.$id);
 		}
 		#+ }
 		$this->getting[] = $id;
@@ -147,7 +147,7 @@ class ServiceLocator{
 		if($object instanceof Service){
 			return $this->get($object->id, array_merge($object->options, $options));
 		}elseif($object instanceof Datum){
-			return $this->data_locator->get($object->id);
+			return $this->data_locator->get($object);
 		}elseif($object instanceof Call){
 			return $this->injector->call($object);
 		}
@@ -198,7 +198,7 @@ class ServiceLocator{
 				$this->injector->call($service);
 			}catch(IoC\InjectionUncallable $e){}
 			#+ }
-			throw new ContainerException('Could not make service from string "'.$service.'"');
+			throw new ContainerException($service, 'Could not make service from string "'.$service.'"');
 		}elseif($service instanceof \Closure){
 			# probably a factory
 			$resolved = $this->injector->call($service, $options);
@@ -244,7 +244,7 @@ class ServiceLocator{
 				$found = $this->by_interface($id);
 			}
 			if(!$found){
-				throw new ServiceNotFound($id);
+				throw new ServiceNotFound($id, 'Service not found: '.$id);
 			}
 			return $found;
 		}

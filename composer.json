@@ -7,7 +7,8 @@
     "require": {
         "php": ">=5.3.0",
         "psr/container": "^2.0",
-        "grithin/phpbase": "^5.0"
+        "grithin/phpbase": "^5.0",
+        "psg/sr3": "^0.1.0"
     },
     "autoload": {
         "psr-4": {
@@ -15,6 +16,7 @@
         }
     },
     "require-dev": {
-        "grithin/phpunit": "^0.1.0"
+        "grithin/phpunit": "^0.1.0",
+        "phpunit/phpunit": "^10.5"
     }
 }

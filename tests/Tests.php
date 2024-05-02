@@ -127,6 +127,8 @@ class nClass1 implements nInterface1, nInterface2{
 
 
 
+
+
 class Tests extends TestCase{
 	use \Grithin\Phpunit\TestTrait;
 
@@ -296,7 +298,7 @@ class Tests extends TestCase{
 			$classC = new classC;
 			return $di->call([$classC, 'bill']);
 		};
-		$result = $this->assert_exception($closure, 'no exception', 'Grithin\\IoC\\InjectionCallException');
+		$result = $this->assert_exception($closure, 'no exception', 'Grithin\\IoC\\InjectionCallExceptionInterface');
 	}
 	function test_missing_param(){
 		$sl = new ServiceLocator;

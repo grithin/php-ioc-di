@@ -74,12 +74,12 @@ class DependencyInjector{
 			if(method_exists($thing, '__invoke')){
 				return $this->method_call($thing, '__invoke', $options);
 			}else{
-				throw new IoC\InjectionUncallable('object uncallable');
+				throw new IoC\InjectionUncallable(func_get_args(), 'object uncallable: '.Tool::flat_json_encode(func_get_args()));
 			}
 		}elseif(is_array($thing)){
 			return $this->method_call($thing[0], $thing[1], $options);
 		}
-		throw new IoC\InjectionUncallable('uncallable');
+		throw new IoC\InjectionUncallable(func_get_args(), 'uncallable: '.Tool::flat_json_encode(func_get_args()));
 
 	}
 	public function uncertain_method_call($class, $method, $options=[]){
@@ -94,7 +94,7 @@ class DependencyInjector{
 		if(is_object($service)){
 			return $this->method_call($service, $method, $options);
 		}else{
-			throw new IoC\InjectionUncallable('uncallable');
+			throw new IoC\InjectionUncallable(func_get_args(), 'uncallable: '.Tool::flat_json_encode(func_get_args()));
 		}
 	}
 
@@ -118,7 +118,7 @@ class DependencyInjector{
 
 		$reflect = new \ReflectionMethod($class, $method);
 		if(!$reflect->isPublic()){
-			throw new MethodVisibility;
+			throw new MethodVisibility([$class, $method], 'Method not visible: '.$method);
 		}
 		$params = $this->parameters_resolve($reflect->getParameters(), $options);
 
@@ -133,7 +133,7 @@ class DependencyInjector{
 
 		$reflect = new \ReflectionMethod($object, $method);
 		if(!$reflect->isPublic()){
-			throw new MethodVisibility;
+			throw new MethodVisibility([$object, $method], 'Method not visible: '.$method);
 		}
 		$params = $this->parameters_resolve($reflect->getParameters(), $options);
 		return $reflect->invokeArgs($object, $params);
@@ -221,7 +221,20 @@ class DependencyInjector{
 						$params_to_inject[$k] = $value;
 						continue;
 					}
-				}catch(\Exception $e){}
+				}catch(\Exception $e){
+					/* need to check if it is the same $name as requested.  It is
+					possible that the name pointed to something else that did not resolve,
+					and we should present that error.
+					*/
+					if($e instanceof ContainerException){
+						if($e->getDetails() != $name){
+							# some subsequent resolution failed, this exception should escalate
+							throw $e;
+						}
+					}else{
+						throw $e;
+					}
+				}
 				try{
 					# first see if a datum exists
 					$value = $this->sl->data_locator->get($name);
@@ -229,7 +242,16 @@ class DependencyInjector{
 						$params_to_inject[$k] = $value;
 						continue;
 					}
-				}catch(\Exception $e){}
+				}catch(\Exception $e){
+					if($e instanceof ContainerException){
+						if($e->getDetails() != $name){
+							# some subsequent resolution failed, this exception should escalate
+							throw $e;
+						}
+					}else{
+						throw $e;
+					}
+				}
 			}
 			#+ }
 			#+ use defaulting name or positional values {
@@ -262,7 +284,7 @@ class DependencyInjector{
 			if($container_exception){ # if SL returned exception, use that
 				throw $container_exception;
 			}
-			throw new MissingParam($param->getName());
+			throw new MissingParam($param, 'Missing parameter: '.$param->getName());
 			#+ }
 
 		}
