@@ -11,7 +11,7 @@ Say we have some parameter (App $app).  There are three scenarios of injection:
 1.	we want to directly inject, not relying on a service locator
 2.	we want to auto inject, using a service locator
 3.	we want to inject something only if the service locator did not find a service
-`default` options allows the 3rd and `with` option allows the 1st.
+A `default` options allows for the 3rd and a `with` option allows the 1st.
 
 if a parameter is optional, this could mean:
 1.	code wants a dependency but shouldn't fail if it doesn't have it
@@ -22,10 +22,16 @@ In the case of #2, it is likely that the parameter is not typed to something DI 
 
 
 class DependencyInjector{
+	public $sl;
 	/** set service locator */
 	public function __construct($ServiceLocator){
 		$this->sl = $ServiceLocator;
 	}
+	/**
+	 * @param Bob $key
+	 * @param mixed $options=[]
+	 *
+	 */
 	public function get($key, $options=[]){
 		return $this->sl->get($key, $options);
 	}
@@ -34,7 +40,7 @@ class DependencyInjector{
 		if(!$type){
 			return new ParamTypeUnusable;
 		}
-		if($type instanceof ReflectionUnionType){
+		if($type instanceof \ReflectionUnionType){
 			# just get the first type of a union
 			$type = $type->getTypes()[0];
 		}
@@ -53,6 +59,13 @@ class DependencyInjector{
 
 	/** call a thing with DI */
 	# see parameters_resolve for $options
+
+	/** General purpose call, for calling methods, functions, or constructing classes
+	 * @param mixed $thing
+	 * @param mixed $options=[]
+	 *
+	 * @return mixed
+	 */
 	public function call($thing, $options=[]){
 		if(is_string($thing)){
 			if(class_exists($thing)){
@@ -162,6 +175,15 @@ class DependencyInjector{
 		with: < dictionary of parameters to inject by position or name, ahead of type declaration injection >;
 		defaults:  < dictionary of parameters to inject by position or name, if type declaration fails >;
 	*/
+	/** Based method definitio, services, and passed options, resolve parameter values
+	 * @param \ReflectionParameter[] $params
+	 * @param (array{
+	 * 	with?: array,
+	 * 	defaults?: array
+	 *  }) $options
+	 *
+	 * @return array
+	 */
 	public function parameters_resolve($params, $options){
 		$defaultss = ['defaults'=>[], 'with'=>[]];
 
@@ -305,7 +327,7 @@ class DependencyInjector{
 		if(!$type){
 			return true;
 		}
-		if($type instanceof ReflectionUnionType){
+		if($type instanceof \ReflectionUnionType){
 			$types = $type->getTypes();
 		}else{
 			$types = [$type];

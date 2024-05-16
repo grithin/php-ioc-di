@@ -9,6 +9,9 @@ class DataLocator{
 	public $data;
 	public $lazy =[];
 	public $factories = [];
+	public $sl;
+	public $injector;
+	public $ids;
 	public function __construct($sl, &$data){
 		$this->sl = $sl;
 		$this->injector = $sl->injector();
@@ -47,7 +50,18 @@ class DataLocator{
 			return $this->injector->call($thing);
 		}
 	}
+
+	/**
+	 * Set a data id to match against something.  "Something" can be data, a factory, or a function
+	 * @param string $id
+	 * @param mixed $thing data or closure or Call type
+	 *
+	 */
 	public function set($id, $thing){
+		if(isset($this->ids[$id])){
+			$this->unset($id);
+		}
+
 		# if it's a function, set it as lazy
 		if($thing instanceof \Closure || $thing instanceof Call){
 			if($thing instanceof Factory){
@@ -69,12 +83,24 @@ class DataLocator{
 	}
 	public function set_datum($id, $thing){
 		$this->data[$id] = $thing;
+		$this->set_id($id);
 	}
 	public function set_lazy($id, $thing){
 		$this->lazy[$id] = $thing;
+		$this->set_id($id);
 	}
 	public function set_factory($id, $thing){
 		$this->factories[$id] = $thing;
+		$this->set_id($id);
+	}
+	public function set_id($id){
+		$this->ids[$id] = true;
+	}
+	public function unset($id){
+		unset($this->ids[$id]);
+		unset($this->factories[$id]);
+		unset($this->lazy[$id]);
+		unset($this->data[$id]);
 	}
 	public function has($id){
 		if($this->has_datum($id) || $this->has_lazy($id) || $this->has_factory($id)){

@@ -15,6 +15,8 @@ service locator oddities considered while building
 */
 
 
+
+
 class ServiceLocator{
 	public $services = [];
 	public $services_reflections = [];
@@ -24,6 +26,9 @@ class ServiceLocator{
 	public $singletons = []; # list of singleton returns
 
 	public $check_all; # whether SL will check all existing classes, or just those in services
+
+	public $injector;
+	public $data_locator;
 
 	/** params
 	< options >
@@ -84,9 +89,14 @@ class ServiceLocator{
 		return false;
 	}
 	/**
-	If the singleton is already initializaed, the options won't have an effect
-	*/
+	 * Mark a service as a singleton.  See `bind`
+	 * @param string $id
+	 * @param mixed $thing=null
+	 * @param mixed $options=[]
+	 *
+	 */
 	public function singleton($id, $thing=null, $options=[]){
+		$this->unbind($id);
 		# mark as a singleton
 		$this->singletons_ids[$id] = true;
 
@@ -95,19 +105,60 @@ class ServiceLocator{
 			unset($this->singletons[$id]);
 		}
 		# bind
-		$this->bind($id, $thing, $options);
+		$this->bind_raw($id, $thing, $options);
 	}
+
+	/**
+	 * Bind without options
+	 * @param mixed $id
+	 * @param mixed $thing
+	 *
+	 */
 	public function set($id, $thing){
 		$this->bind($id, $thing);
 	}
 
-	public function bind($id, $thing=null, $options=[]){
-		if($thing === null){
+
+	/**
+	 * Do bind, but without unbind
+	 * @param mixed $id
+	 * @param null $thing
+	 * @param array $options
+	 *
+	 */
+	public function bind_raw($id, $thing = null, $options = []): void {
+		if ($thing === null) {
 			$thing = $id;
 		}
 		$this->services[$id] = $thing;
 		$this->services_options[$id] = $options;
 	}
+
+	/**
+	 * Remove id from service locator
+	 * @param mixed $id
+	 *
+	 */
+	public function unbind($id): void{
+		unset($this->services[$id]);
+		unset($this->services_options[$id]);
+		unset($this->services_reflections[$id]);
+		unset($this->singletons_ids[$id]);
+		unset($this->singletons[$id]);
+	}
+
+	/**
+	 * Link a service id to some `thing` with `options`
+	 * @param mixed $id
+	 * @param mixed $thing=null if null, use $id
+	 * @param mixed $options=[]
+	 *
+	 */
+	public function bind($id, $thing=null, $options=[]): void{
+		$this->unbind($id);
+		$this->bind_raw($id, $thing, $options);
+	}
+
 	public $getting = [];
 
 	public $max_depth = 15;
@@ -329,7 +380,7 @@ class ServiceLocator{
 					&& !$reflect->isInterface()
 					&& !$reflect->isTrait()
 				){
-					$this->bind($target_class, $class);
+					$this->bind($class_target, $class);
 					return $class;
 				}
 			}

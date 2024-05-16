@@ -1,141 +1,487 @@
 # IoC DI
-A much smaller IoC Dependency Injector and Service Locator.
+A small IoC Dependency Injector and Service Locator with experimental features, including a Data Locator.
 
 ```sh
 composer require grithin/ioc-di
 ```
 
-## Why
--	PHP DI was too big
--	needed unfound features
-	-	service as a parameter (am I the only one who's thought of this?)
-	-	inject by name and position
--	wanted to see exactly how IoC DL was done in PHP
 
 ## Use
 
-```php
-interface interface1{}
-interface interface1_1 extends interface1{}
 
-class class1 implements interface1_1{}
-class class2_construct{
-	public function __construct(interface1 $bob){
-		$this->bob = $bob;
-	}
-}
-class class3 implements interface1_1{}
+### HEADER
+For the code examples, use this header to run
+```php
+# HEADER #
+use \Grithin\{ServiceLocator, DependencyInjector};
+use \Grithin\IoC\{NotFound, ContainerException, MissingParam, Datum, Service, Call, Factory};
 
 $sl = new ServiceLocator;
-$di = $sl->injector_get();
-$sl->bind(class1::class);
-
-# IoC injection of constructor
-$class2_instance = $di->call('class2_construct');
-
-# overide by name
-$class2_instance = $di->call_with('class2_construct', ['bob'=> new class3]);
-
-# override by position
-$class2_instance = $di->call_with('class2_construct', [0=> new class3]);
-
-# default on not found
-class class4_construct{
-	public function __construct(class5 $bob){
-		$this->bob = $bob;
-	}
-}
-class class5{}
-$class2_instance = $di->call('class4_construct', ['default'=>['bob'=>new class5]]);
-
-# service as a parameter
-$class2_instance = $di->call_with('class2_construct', ['bob'=> new \Grithin\IoC\Service('class3')]);
-
+$di = $sl->injector();
 
 ```
 
-![Resolve Flow](about/di_resolution_flow.png?raw=true "Resolve Flow")
+
+### Basic
+Service Locator injection of "NameInterface" typed parameter into newly constructed "Creature"
+```php
+## INSERT HEADER ##
+
+class Creature{
+	public $name;
+	public function __construct(NameInterface $name){
+		$this->name = $name;
+	}
+}
+interface NameInterface{ }
+class Name implements NameInterface{
+	public $text;
+	public function __construct($text='bob'){
+		$this->text = $text;
+	}
+}
+
+$sl = new ServiceLocator;
+$di = $sl->injector();
+
+# add "Name" into services
+$sl->bind('Name');
+
+# construct "Creature" with injected Name instance
+$bob = $di->call('Creature');
+echo $bob->name->text;
+#> 'bob'
+```
+
+### Mixing Service Locator And Provided Parameters
+Sometimes it is useful to allow the ServiceLocator to find one parameter, to but provide another parameter instead of using the ServiceLocator for it.
 
 
-## ServiceLocator
-Will also accept odd variables:
--	instances
-	-	if singleton, will return on get
-	-	if not singleton, will clone on get
--	string
-	-	will try to resolve the string to either another service or a class
--	InterprettedInterface
-	-	will interpret
--	non-string, non object, non-closure (arrays)
-	-	if singleton, will return reference
-	-	if not singleton, will return non-reference
+```php
+## INSERT HEADER ##
 
-### The Notion Of Options In Services
-
-That an object is constructed with parameters other than those that are auto injected is sometimes the case.  To allow this, SL provides both:
--	DI options bound to the service, that are used each time `get` is called for the service
--	`get` call DI options, that can be used for instance specific parameters and to overwrite options bound to the service
-
-An example of the utility of this can be seen in how SL implements PSR 11.
-
-@SideNote A `get` with options instigating a `bind` should not bind the options to the new service.  If the get is being used with options, it is expected further `get`'s to that service will also use options.
-
-## Data Locator
-Should serve data, however there are times when it is desirable to make data just in time.  As such, ways are provided;
--	set(): with $thing equal to Closure or Grithin\IoC\Call
-	-	this sets lazy
--	set_lazy(): this will execute the callable once when datum is requested
--	set_factory(): this will execute every time data is requested
+class Creature{
+	public $name;
+	public $age;
+	public function __construct(Name $name, Age $age){
+		$this->name = $name;
+		$this->age = $age;
+	}
+}
+class Name{
+	public $text;
+	public function __construct($text='bob'){
+		$this->text = $text;
+	}
+}
+class Age{
+	public $text;
+	public function __construct($text='20'){
+		$this->text = $text;
+	}
+}
 
 
-## Special Type Objects
+# add "Age" into services
+$sl->bind('Age');
+
+# pass in the $age parameter by matching the parameter name
+$bob = $di->call_with('Creature', ['age'=> new Age('30')]);
+echo $bob->age->text;
+#> 30
+
+# pass in the $age parameter by matching the position
+$bob = $di->call_with('Creature', [1=> new Age('30')]);
+echo $bob->age->text;
+#> 30
+```
+
+### Defaults
+If the DependencyInjector can't resolve a dependency, you can provide a fallback default for the parameter.
+
+```php
+## INSERT HEADER ##
+
+class Creature{
+	public $name;
+	public function __construct(NameInterface $name){
+		$this->name = $name;
+	}
+}
+interface NameInterface{ }
+class Name implements NameInterface{
+	public $text;
+	public function __construct($text='bob'){
+		$this->text = $text;
+	}
+}
+
+
+# use a default for the "name" parameter
+$bob = $di->call('Creature', ['defaults'=>['name'=> new Name('Sue')]]);
+# since "Name" has not been registered as a service, ServiceLocator will fail to find it, and use the default provided
+echo $bob->name->text;
+#> sue
+```
+
+Because it may be undesirable to first instantiate a default prior to it being used, special classes are available to prevent pre-instantiation.
+
+These special classes include
+- \Grithin\IoC\Service
+- \Grithin\IoC\Datum
+- \Grithin\IoC\Call
+- \Grithin\IoC\Factory
+
+See the [Special Types](#special-types)
+
+
+
+
+
+## Special Types
 Using Grithin\IoC\SpecialTypeInterface
 
 ### Service Object
 Used by: SL, DI
+- If you want to point to a service with options.
+- If you want to provide a parameter default as an object, but don't want to instantiate the object unless it is for default
 
-If you want to point to a service with options.
-If you want to provide a parameter default as an object, but don't want to instantiate the object unless it is used, the Serivce object can b used
+
+Example of using `Service` for a default
 ```php
-use \Grithin\IoC\Service;
-$service = new Service($service_name, $injection_options);
-$injector->call('Bob::bill', ['defaults'=>[$service]]);
+## INSERT HEADER ##
+
+interface NameInterface{}
+class Name implements NameInterface
+{
+	public $text;
+	public function __construct($text = 'bob')
+	{
+		$this->text = $text;
+	}
+}
+function sayName(NameInterface $name){
+	echo $name->text;
+}
+
+# create a service with pre-set construction options
+$name_service = new Service(Name::class, ['with'=>['text'=>'sue']]);
+
+# injector will fall back on the default, $name_service, since no NameInterface is registered
+$di->call('sayName', ['defaults'=> ['name'=>$name_service]]);
+#> sue
 ```
 
 ### Datum
 Used by: SL, DI
+- If you want configure a service to be instantialized using datum that might be set later or change
 
-If you want to point to a datum that might be set later.
-If you want to set a parameter to a datum that will be set later.  The key will be resolved using the Data Locator when the Datum object is resolved.
 ```php
-use \Grithin\IoC\Datum;
-$sl->bind('ClassPerson', ['with'=>['name'=>new Datum('name')]]);
+## INSERT HEADER ##
+
+class Person{
+	public $name;
+	function __construct($name){
+		$this->name = $name;
+	}
+	function sayName(){
+		echo $this->name;
+	}
+}
+
+
+# Bind service id Person to the Person class, with constructor parameter using Datum "name"
+$sl->bind('Person', Person::class,  ['with'=>['name'=>new Datum('name')]]);
+
+# define the Datum for the DataLocator
+# this is one benefit to using Datum - it can be defined after a service is bound to use it
+$sl->data_locator->set('name', 'sue');
+
+function sayName(Person $person){
+	return $person->sayName();
+}
+
+# getName will cause ServiceLocator to create Person instance, which causes DataLocator to pull "name"
+$di->call('sayName');
+#> sue
+
+# change Datum resolution
+$sl->data_locator->set('name', 'bob');
+
+# a new Person instance will be made, and Datum "name" will now resolve to "bob"
+$di->call('sayName');
+#> bob
 ```
 
 ### Call
 Used by: SL, DI, DL
 
-If you want to point to the result of some callable.
+- If you want to point to the result of some callable.
+
+
 ```php
-use \Grithin\IoC\Call;
-$sl->bind('ClassPerson', ['with'=>['name'=>new Call('NameGetter::get_name')]]);
+## INSERT HEADER ##
+
+class Person{
+	public $name;
+	function __construct($name){
+		$this->name = $name;
+	}
+	function sayName(){
+		echo $this->name;
+	}
+}
+
+
+function getName() {
+	return 'bob';
+}
+
+# Invoke getName when instantiating "Person" for parameter $name
+$sl->bind('Person', Person::class,  ['with'=>['name'=>new Call('getName')]]);
+
+function sayName(Person $person){
+	return $person->sayName();
+}
+
+$di->call('sayName');
+#> bob
 ```
 
 
 ### Factory
 Used by: SL, DI, DL
 
-Used to indicate to DataLocator it should use thing as a factory
+- Used to indicate to DataLocator it should use thing as a factory.
 
+Whereas, with `Call`, a datum will be resolved by calling, with `Factory`, it will be resolved by calling every time the data is accessed from the DataLocator
 
-
-## Notes
-By default, SL does not check all classes to resolve an interface or abstract class, it only checks what is within the services (by id).  You can make it check everything though:
 ```php
-$sl = new ServiceLocator(['check_all'=>true]);
+## INSERT HEADER ##
+
+$random = function(){ return rand(0,20000); };
+$sl->data_locator->set('rand', new Call($random));
+echo $sl->data_locator->get('rand');
+#> 1231
+
+# the DataLocator only runs the callable once, so it will return the same value here
+echo $sl->data_locator->get('rand');
+#> 1231
+
+# a factory can be used to get new data every time
+$sl->data_locator->set('rand', new Factory($random));
+
+echo '|';
+echo $sl->data_locator->get('rand');
+echo '|';
+#> 3421
+echo $sl->data_locator->get('rand');
+#> 8291
 ```
 
 
-## FAQ
--	is this better than X?
-	-	most definitely 100% better
+
+
+
+## Resolution Of Parameters
+
+For some method definition, how does the injector resolve the injection values?
+
+- if `with` variant/option is used (`call_with` and `call(..., ['with'=>[]]))`, use `with` array
+	- by position
+	- by name
+- by type declaration (ServiceLocator)
+- if parameter starts with uppercase, attempt to match against
+	- Service
+	- Datum
+- if `defaults` option is present, use it
+- use the default provided in the method/constructor definition
+
+
+
+
+## Parameter Name Based Resolution
+As a shortcut for well-known frequently used expected parameters, injection can use the name alone so long as that name starts with a capital letter.  And, in this case, both services and data are checked.
+
+```php
+## INSERT HEADER ##
+
+$sl->data_locator->set('Server', 'localhost');
+
+function printServer($Server){
+	echo $Server;
+}
+
+$bob = $di->call('printServer');
+#> localhost
+```
+
+Static analysis and autocompletion within editors has made this usually a bad option.
+
+
+
+## ServiceLocator
+_Beyond The Basics_
+
+
+### Singleton
+For something like a Database, it is desirable that only one primary instance be created.
+
+```php
+## INSERT HEADER ##
+class Database{
+	function __construct(){
+		echo 'connecting... ';
+		# ... expensive connection stuff ...
+	}
+	function query(){
+		return 'bob';
+	}
+}
+
+$sl->singleton('Database');
+
+function getUserName(Database $db){
+	echo $db->query();
+}
+
+$di->call('getUserName');
+#> connecting... bob
+$di->call('getUserName');
+#> bob
+```
+
+
+You can also just provide an existing singleton object to the ServiceLocator
+```php
+## INSERT HEADER ##
+class Database{
+	public $host;
+	function __construct($host = 'local_899') {
+		$this->host = $host;
+	}
+}
+
+function getDb(Database $db){
+	echo $db->host;
+}
+
+# Can use the `Service` class to override service config
+$config = ['i'=>0];
+$sl->singleton('Database', new Database('remote'));
+$di->call('getDb');
+#> remote
+```
+
+
+
+### Links
+It may be useful to link one service id to another service
+
+```php
+## INSERT HEADER ##
+interface DatabaseInterface {}
+class Database implements DatabaseInterface{
+	function query(){
+		return 'bob';
+	}
+}
+
+$sl->bind('DatabaseInterface', 'LinkMiddleMan');
+$sl->bind('LinkMiddleMan', 'Database');
+
+
+function getUserName(DatabaseInterface $db){
+	echo $db->query();
+}
+
+# ServiceLocator will resolve DatabaseInterface to LinkMiddleMan, and then LinkMiddleMan to Database
+$di->call('getUserName');
+#> bob
+
+```
+
+
+### Special Types
+It may be useful to resolve a service using a special type.
+
+Here, a function is used to get a service
+```php
+## INSERT HEADER ##
+
+class Database{
+	function query(){
+		return 'bob';
+	}
+}
+function getDatabase(){
+	return new Database;
+}
+
+function getUserName(Database $db){
+	echo $db->query();
+}
+
+
+# Using the `Call` class
+$sl->bind('Database', new Call('getDatabase'));
+$di->call('getUserName');
+#> bob
+
+# Using a closure
+$sl->bind('Database', function(){ return getDatabase(); });
+$di->call('getUserName');
+#> bob
+```
+
+
+Using `Service` for special configuration
+```php
+interface DatabaseInterface {}
+class Database implements DatabaseInterface {
+	public $host;
+	function __construct($host='local_899'){
+		$this->host = $host;
+	}
+}
+
+function getDb(DatabaseInterface $db){
+	echo $db->host;
+}
+
+
+# Can use the `Service` class to override service config
+$sl->bind('Database');
+$sl->bind('DatabaseInterface', new Service('Database', ['with'=>['host'=>'remote_123']]));
+$di->call('getDb');
+#> remote_123
+
+```
+
+
+
+## Data Locator
+A service locator for data.
+
+```php
+# basic
+$sl->data_locator->set('x', '123');
+
+# lazy loaded (called once)
+$sl->data_locator->set('y', function(){ return '456'; });
+function return_456(){
+	return '456'
+}
+$sl->data_locator->set('y', new Call('return_456'));
+
+# factory (called every time)
+$sl->data_locator->set('y', new Factory('return_456'));
+```
+
+
+## Notes
+
+By default, SL does not check all classes to resolve an interface or abstract class, it only checks what is within the services (by id) or available without further file inclusion.  You can make it check everything though:
+```php
+$sl = new ServiceLocator(['check_all'=>true]);
+```
